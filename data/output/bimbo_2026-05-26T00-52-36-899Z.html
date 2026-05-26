@@ -1,0 +1,478 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><title>Informe Ejecutivo Precios Bimbo</title>
+<style>
+  @page { size: A4; margin: 16mm 14mm; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1a1a1a; font-size: 10.5px; margin: 0; line-height: 1.5; }
+
+  /* ===== Portada ===== */
+  .cover { page-break-after: always; min-height: 95vh; display: flex; flex-direction: column; justify-content: space-between; padding: 30px 10px; }
+  .cover-top { border-left: 6px solid #E1251B; padding-left: 22px; }
+  .cover-eyebrow { font-size: 11px; color: #002E6D; text-transform: uppercase; letter-spacing: .15em; font-weight: 700; margin-bottom: 8px; }
+  .cover h1 { font-size: 38px; margin: 0 0 8px; line-height: 1.15; color: #1a1a1a; font-weight: 800; letter-spacing: -.02em; }
+  .cover h2 { font-size: 18px; margin: 12px 0 0; color: #555; font-weight: 500; }
+  .cover-meta { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; line-height: 1.9; }
+  .cover-meta b { color: #1a1a1a; font-weight: 700; }
+  .cover-bottom { text-align: center; color: #999; font-size: 10px; }
+
+  /* ===== Header de páginas ===== */
+  .page-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #E1251B; padding-bottom: 8px; margin-bottom: 18px; }
+  .page-header .title { font-size: 14px; font-weight: 800; color: #E1251B; }
+  .page-header .meta { font-size: 10px; color: #888; }
+
+  /* ===== Layout ===== */
+  section { page-break-inside: avoid; margin-bottom: 22px; }
+  section h2 { font-size: 14px; margin: 0 0 12px; padding: 7px 14px; background: #002E6D; color: #fff; border-radius: 4px; display: inline-block; }
+  section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #002E6D; margin: 0 0 8px; }
+  .lead { font-size: 12px; line-height: 1.7; padding: 14px 18px; background: #fff8e7; border-left: 4px solid #E1251B; border-radius: 4px; margin-bottom: 18px; }
+
+  /* ===== KPIs ===== */
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 22px; }
+  .kpi { padding: 12px 14px; border: 1px solid #e8dfc8; border-radius: 8px; position: relative; overflow: hidden; }
+  .kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+  .kpi-label { font-size: 9px; color: #666; text-transform: uppercase; letter-spacing: .07em; font-weight: 700; }
+  .kpi-value { font-size: 20px; font-weight: 800; margin-top: 3px; }
+  .kpi-sub { font-size: 9px; color: #888; }
+
+  /* ===== Tablas ===== */
+  table { width: 100%; border-collapse: collapse; font-size: 10px; }
+  th { background: #fff8e7; padding: 7px 8px; text-align: left; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #002E6D; border-bottom: 2px solid #e8dfc8; }
+  td { padding: 6px 8px; border-bottom: 1px solid #f0e8d0; vertical-align: top; }
+  td.price, th.price { text-align: right; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+  td.brand { color: #666; font-size: 9.5px; text-transform: capitalize; }
+
+  /* ===== Pills ===== */
+  .pill { display: inline-block; padding: 1.5px 7px; border-radius: 8px; color: #fff; font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .pill.tata { background: #e5002b; }
+  .pill.disco { background: #0070d2; }
+  .pill.devoto { background: #f15c22; }
+  .pill.tiendainglesa { background: #19744a; }
+  .badge-comp { font-size: 8px; color: #002E6D; background: #e3f2fd; padding: 1px 5px; border-radius: 6px; margin-left: 4px; font-weight: 700; }
+  .badge-bimbo { font-size: 8px; color: #E1251B; background: #ffebee; padding: 1px 5px; border-radius: 6px; margin-left: 4px; font-weight: 700; }
+  .discount { background: #e8f5e9; color: #2e7d32; padding: 1.5px 6px; border-radius: 6px; font-size: 9px; font-weight: 700; }
+
+  /* ===== Grid 2 cols ===== */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+  .grid2 .card { border: 1px solid #e8dfc8; border-radius: 8px; padding: 14px; }
+
+  /* ===== Barra ===== */
+  .bar-wrap { background: #fff8e7; height: 8px; border-radius: 4px; overflow: hidden; margin: 2px 0; }
+  .bar { height: 100%; background: #E1251B; }
+  .bar.azul { background: #002E6D; }
+
+  /* ===== Conclusiones ===== */
+  .conclusions { padding: 16px 20px; background: #f5f7fa; border-radius: 8px; border-left: 4px solid #002E6D; }
+  .conclusions li { margin-bottom: 10px; line-height: 1.6; font-size: 11px; }
+  .conclusions li:last-child { margin-bottom: 0; }
+
+  footer { margin-top: 24px; padding-top: 10px; border-top: 1px solid #ddd; text-align: center; color: #999; font-size: 8.5px; }
+
+  .group-label { display: inline-block; padding: 2px 8px; border-radius: 8px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+  .group-label.bimbo { background: #ffebee; color: #E1251B; }
+  .group-label.competencia { background: #e3f2fd; color: #002E6D; }
+</style>
+</head>
+<body>
+
+<!-- ===== PORTADA ===== -->
+<div class="cover">
+  <div>
+    <div class="cover-top">
+      <div class="cover-eyebrow">Informe Ejecutivo</div>
+      <h1>Análisis de Precios<br>Grupo Bimbo Uruguay</h1>
+      <h2>Relevamiento en supermercados online</h2>
+    </div>
+    <div class="cover-meta">
+      <b>Fecha de relevamiento:</b> 26 de mayo de 2026 a las 12:52 a. m.<br>
+      <b>Supermercados:</b> Tata · Disco · Devoto · Tienda Inglesa<br>
+      <b>SKUs analizados:</b> 500 (205 Grupo Bimbo · 295 Competencia)<br>
+      <b>Marcas relevadas:</b> 10 (6 del grupo, 5 competidoras)
+    </div>
+  </div>
+  <div class="cover-bottom">
+    Generado automáticamente · Datos relevados de los sitios web oficiales de cada supermercado.
+  </div>
+</div>
+
+<!-- ===== RESUMEN EJECUTIVO ===== -->
+<div class="page-header">
+  <div class="title">Resumen Ejecutivo</div>
+  <div class="meta">26 de mayo de 2026 a las 12:52 a. m. · pág 2</div>
+</div>
+
+<section>
+  <p class="lead">
+    Se relevaron <b>500 productos</b> de las marcas del Grupo Bimbo y de sus principales competidores en panificados industriales, en las cuatro principales cadenas online de Uruguay.
+    El precio promedio de Bimbo se ubica un <b>14.5% por encima</b> del promedio de la competencia.
+    Se identificaron <b>40 ofertas activas</b> (8% del catálogo) y <b>130 productos comparables</b> presentes en al menos 2 supermercados.
+  </p>
+
+  <div class="kpis">
+    
+      <div class="kpi" style="--c:#E1251B"><style>.kpi::before { background: #E1251B; }</style>
+        <div class="kpi-label">SKUs totales</div>
+        <div class="kpi-value">500</div>
+        <div class="kpi-sub">205 Bimbo · 295 comp.</div>
+      </div>
+    
+      <div class="kpi" style="--c:#002E6D"><style>.kpi::before { background: #002E6D; }</style>
+        <div class="kpi-label">Precio prom. Bimbo</div>
+        <div class="kpi-value">$ 150</div>
+        <div class="kpi-sub">205 productos</div>
+      </div>
+    
+      <div class="kpi" style="--c:#002E6D"><style>.kpi::before { background: #002E6D; }</style>
+        <div class="kpi-label">Precio prom. Competencia</div>
+        <div class="kpi-value">$ 131</div>
+        <div class="kpi-sub">295 productos</div>
+      </div>
+    
+      <div class="kpi" style="--c:#2e7d32"><style>.kpi::before { background: #2e7d32; }</style>
+        <div class="kpi-label">Ofertas vigentes</div>
+        <div class="kpi-value">40</div>
+        <div class="kpi-sub">8% del catálogo</div>
+      </div>
+    
+  </div>
+</section>
+
+<section>
+  <h2>Hallazgos clave</h2>
+  <ul class="conclusions">
+    <li><b>Posicionamiento premium:</b> el precio promedio de Bimbo ($ 150) se ubica 14.5% por encima de la competencia ($ 131). Revisar si el diferencial está justificado por la propuesta de valor de cada SKU.</li><li><b>Mayor dispersión:</b> "Urupan Felipe" presenta una diferencia de 67.3% entre supers (Tata $ 65 → Tata $ 199). Revisar consistencia comercial.</li><li><b>Presión promocional de competencia:</b> 25 productos competidores en oferta vs 15 de Bimbo. Evaluar respuesta promocional.</li>
+  </ul>
+</section>
+
+<!-- ===== PERFORMANCE POR MARCA ===== -->
+<section>
+  <h2>Performance por marca</h2>
+  <table>
+    <thead><tr><th>Marca</th><th>Grupo</th><th class="price">SKUs</th><th class="price">Supers</th><th class="price">Precio prom.</th><th class="price">Ofertas</th></tr></thead>
+    <tbody>
+      
+        <tr>
+          <td><b>El Trigal</b></td>
+          <td><span class="group-label competencia">Competencia</span></td>
+          <td class="price">157</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 103</td>
+          <td class="price">19</td>
+        </tr>
+      
+        <tr>
+          <td><b>Pagnifique</b></td>
+          <td><span class="group-label competencia">Competencia</span></td>
+          <td class="price">99</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 175</td>
+          <td class="price">3</td>
+        </tr>
+      
+        <tr>
+          <td><b>Bimbo</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">93</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 161</td>
+          <td class="price">11</td>
+        </tr>
+      
+        <tr>
+          <td><b>Maestro Cubano</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">49</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 129</td>
+          <td class="price">0</td>
+        </tr>
+      
+        <tr>
+          <td><b>Los Sorchantes</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">30</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 149</td>
+          <td class="price">2</td>
+        </tr>
+      
+        <tr>
+          <td><b>Granix</b></td>
+          <td><span class="group-label competencia">Competencia</span></td>
+          <td class="price">30</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 137</td>
+          <td class="price">0</td>
+        </tr>
+      
+        <tr>
+          <td><b>Nutrabien</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">13</td>
+          <td class="price">3/4</td>
+          <td class="price">$ 109</td>
+          <td class="price">0</td>
+        </tr>
+      
+        <tr>
+          <td><b>Tia Rosa</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">11</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 164</td>
+          <td class="price">0</td>
+        </tr>
+      
+        <tr>
+          <td><b>Salmas</b></td>
+          <td><span class="group-label bimbo">Bimbo</span></td>
+          <td class="price">9</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 201</td>
+          <td class="price">2</td>
+        </tr>
+      
+        <tr>
+          <td><b>Pan Felipe</b></td>
+          <td><span class="group-label competencia">Competencia</span></td>
+          <td class="price">9</td>
+          <td class="price">4/4</td>
+          <td class="price">$ 97</td>
+          <td class="price">3</td>
+        </tr>
+      
+    </tbody>
+  </table>
+</section>
+
+<!-- ===== COBERTURA POR SUPER ===== -->
+<section>
+  <h2>Cobertura por supermercado</h2>
+  <table>
+    <thead><tr><th>Super</th><th class="price">SKUs</th><th class="price">Bimbo</th><th class="price">Comp.</th><th class="price">Prom.</th><th class="price">Rango</th><th class="price">Ofertas</th></tr></thead>
+    <tbody>
+      
+        <tr>
+          <td><span class="pill tata">Tata</span></td>
+          <td class="price">168</td>
+          <td class="price">54</td>
+          <td class="price">114</td>
+          <td class="price">$ 138</td>
+          <td class="price">$ 37 - $ 380</td>
+          <td class="price">20</td>
+        </tr>
+      
+        <tr>
+          <td><span class="pill devoto">Devoto</span></td>
+          <td class="price">115</td>
+          <td class="price">51</td>
+          <td class="price">64</td>
+          <td class="price">$ 139</td>
+          <td class="price">$ 25 - $ 999</td>
+          <td class="price">4</td>
+        </tr>
+      
+        <tr>
+          <td><span class="pill disco">Disco</span></td>
+          <td class="price">115</td>
+          <td class="price">52</td>
+          <td class="price">63</td>
+          <td class="price">$ 140</td>
+          <td class="price">$ 25 - $ 999</td>
+          <td class="price">4</td>
+        </tr>
+      
+        <tr>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price">102</td>
+          <td class="price">48</td>
+          <td class="price">54</td>
+          <td class="price">$ 138</td>
+          <td class="price">$ 47 - $ 338</td>
+          <td class="price">12</td>
+        </tr>
+      
+    </tbody>
+  </table>
+</section>
+
+<!-- ===== TOP DIFERENCIAS ENTRE SUPERS ===== -->
+<section style="page-break-before:always">
+<div class="page-header">
+  <div class="title">Oportunidades de Optimización</div>
+  <div class="meta">26 de mayo de 2026 a las 12:52 a. m.</div>
+</div>
+
+  <h2>Top diferencias de precio entre supers</h2>
+  <p style="font-size:10.5px;color:#666;margin:0 0 10px">Productos con mayor variación porcentual entre el super más barato y el más caro. Indica oportunidades de arbitraje o inconsistencia en la estrategia comercial.</p>
+  <table>
+    <thead><tr><th>Producto</th><th>Marca</th><th class="price">Más barato</th><th class="price">Más caro</th><th class="price">Diferencia</th></tr></thead>
+    <tbody>
+      <tr>
+          <td>Urupan Felipe</td>
+          <td class="brand">pagnifique <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tata">Tata</span> $ 65</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 199</td>
+          <td class="price" style="color:#E1251B">$ 134 · 67.3%</td>
+        </tr><tr>
+          <td>Pan Frances Grande</td>
+          <td class="brand">pagnifique <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tata">Tata</span> $ 103</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 206</td>
+          <td class="price" style="color:#E1251B">$ 103 · 50.0%</td>
+        </tr><tr>
+          <td>Promo Empanadas Pagnifique 70 g 3 U</td>
+          <td class="brand">pagnifique <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tata">Tata</span> $ 205</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 380</td>
+          <td class="price" style="color:#E1251B">$ 175 · 46.1%</td>
+        </tr><tr>
+          <td>Magdalenas Chips Chocolate EL TRIGAL 200 g</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tiendainglesa">Tienda Inglesa</span> $ 76</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 133</td>
+          <td class="price" style="color:#E1251B">$ 57 · 42.9%</td>
+        </tr><tr>
+          <td>Galletas Uruguayitas EL TRIGAL 350 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tiendainglesa">Tienda Inglesa</span> $ 79</td>
+          <td class="price"><span class="pill devoto">Devoto</span> $ 122</td>
+          <td class="price" style="color:#E1251B">$ 43 · 35.2%</td>
+        </tr><tr>
+          <td>Grisines sin Sal EL TRIGAL 145 g</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tiendainglesa">Tienda Inglesa</span> $ 68</td>
+          <td class="price"><span class="pill devoto">Devoto</span> $ 105</td>
+          <td class="price" style="color:#E1251B">$ 37 · 35.2%</td>
+        </tr><tr>
+          <td>Uruguayitas El Trigal Mini 100 G</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill devoto">Devoto</span> $ 30</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 45</td>
+          <td class="price" style="color:#E1251B">$ 15 · 33.3%</td>
+        </tr><tr>
+          <td>Pan Casero Rebanado</td>
+          <td class="brand">pagnifique <span class="badge-comp">C</span></td>
+          <td class="price"><span class="pill tata">Tata</span> $ 139</td>
+          <td class="price"><span class="pill tata">Tata</span> $ 199</td>
+          <td class="price" style="color:#E1251B">$ 60 · 30.2%</td>
+        </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ===== TOP DESCUENTOS ===== -->
+<section>
+  <h2>Top ofertas / descuentos detectados</h2>
+  <p style="font-size:10.5px;color:#666;margin:0 0 10px">Ranking de productos con mayor porcentaje de descuento entre precio de lista y precio actual.</p>
+  <table>
+    <thead><tr><th>Producto</th><th>Marca</th><th>Super</th><th class="price">Lista</th><th class="price">Oferta</th><th class="price">Ahorra</th><th>%</th></tr></thead>
+    <tbody>
+      
+        <tr>
+          <td>Pan felipe 150g x un. aprox.</td>
+          <td class="brand">pan felipe <span class="badge-comp">C</span></td>
+          <td><span class="pill devoto">Devoto</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 479</td>
+          <td class="price">$ 72</td>
+          <td class="price" style="color:#2e7d32">$ 407</td>
+          <td><span class="discount">−85%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Pan felipe 150g x un. aprox.</td>
+          <td class="brand">pan felipe <span class="badge-comp">C</span></td>
+          <td><span class="pill disco">Disco</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 479</td>
+          <td class="price">$ 72</td>
+          <td class="price" style="color:#2e7d32">$ 407</td>
+          <td><span class="discount">−85%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Magdalena Marmolada EL TRIGAL 200 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 124</td>
+          <td class="price">$ 74</td>
+          <td class="price" style="color:#2e7d32">$ 50</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Magdalena Rellena de Dulce de Leche EL TRIGAL 200 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 124</td>
+          <td class="price">$ 74</td>
+          <td class="price" style="color:#2e7d32">$ 50</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Galleta Pannina EL TRIGAL 320 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 139</td>
+          <td class="price">$ 83</td>
+          <td class="price" style="color:#2e7d32">$ 56</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Galleta Pannina sin Sal EL TRIGAL 315 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 139</td>
+          <td class="price">$ 83</td>
+          <td class="price" style="color:#2e7d32">$ 56</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Magdalenas con Chips de Chocolate EL TRIGAL 200 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 127</td>
+          <td class="price">$ 76</td>
+          <td class="price" style="color:#2e7d32">$ 51</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Magdalenas de Vainilla EL TRIGAL 200 gr</td>
+          <td class="brand">el trigal <span class="badge-comp">C</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 127</td>
+          <td class="price">$ 76</td>
+          <td class="price" style="color:#2e7d32">$ 51</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Tostadita Salmas de Maíz al Horno SANISSIMO 6 Unidades</td>
+          <td class="brand">salmas <span class="badge-bimbo">B</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 182</td>
+          <td class="price">$ 109</td>
+          <td class="price" style="color:#2e7d32">$ 73</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+        <tr>
+          <td>Tostadita Salmas de Maíz al Horno SANISSIMO 216 gr</td>
+          <td class="brand">salmas <span class="badge-bimbo">B</span></td>
+          <td><span class="pill tiendainglesa">Tienda Inglesa</span></td>
+          <td class="price" style="text-decoration:line-through;color:#999;font-weight:400">$ 310</td>
+          <td class="price">$ 186</td>
+          <td class="price" style="color:#2e7d32">$ 124</td>
+          <td><span class="discount">−40%</span></td>
+        </tr>
+      
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  Informe generado automáticamente · Datos relevados de los sitios web oficiales de Tata, Disco, Devoto y Tienda Inglesa · Para uso interno.
+</footer>
+
+</body></html>
