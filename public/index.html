@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Precios Bimbo · Supermercados Uruguay</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%9B%92%3C/text%3E%3C/svg%3E" />
+<style>
+  * { box-sizing: border-box; }
+  :root {
+    --bg: #0f1115;
+    --panel: #1a1d24;
+    --panel2: #232730;
+    --border: #2c313c;
+    --text: #e6e9ef;
+    --muted: #8c93a4;
+    --accent: #ff5b5b;
+    --tata: #e5002b;
+    --disco: #0070d2;
+    --devoto: #f15c22;
+    --tiendainglesa: #19744a;
+  }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; justify-content: space-between; align-items: end; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+  h1 { margin: 0 0 4px; font-size: 22px; }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .downloads { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--panel); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-size: 13px; text-decoration: none; cursor: pointer; transition: all .15s; }
+  .btn:hover { background: var(--panel2); border-color: #3d4452; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { filter: brightness(1.1); }
+  .btn:disabled { opacity: .55; cursor: progress; }
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--panel2); border: 1px solid var(--border); padding: 12px 18px; border-radius: 8px; font-size: 13px; box-shadow: 0 8px 24px rgba(0,0,0,.4); z-index: 1000; max-width: 90vw; }
+  .toast.error { border-color: var(--accent); }
+  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .summary .box { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .summary .box b { display: block; font-size: 22px; font-weight: 600; }
+  .summary .box span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+  .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 16px; align-items: center; }
+  .filters input, .filters select { background: var(--panel); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 6px; font-size: 13px; min-width: 0; }
+  .filters input { flex: 1; min-width: 200px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 4px 12px; font-size: 12px; cursor: pointer; user-select: none; transition: all .15s; }
+  .chip.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 8px; overflow: hidden; }
+  thead th { background: var(--panel2); padding: 10px 12px; text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); border-bottom: 1px solid var(--border); cursor: pointer; user-select: none; }
+  thead th:hover { color: var(--text); }
+  thead th.sorted::after { content: ' ▼'; font-size: 9px; }
+  thead th.sorted.asc::after { content: ' ▲'; }
+  tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; vertical-align: middle; }
+  tbody tr:hover { background: var(--panel2); }
+  td.price { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  td.brand { color: var(--muted); font-size: 12px; text-transform: capitalize; }
+  td a { color: inherit; text-decoration: none; }
+  td a:hover { color: var(--accent); }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 10px; color: #fff; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .pill.tata { background: var(--tata); }
+  .pill.disco { background: var(--disco); }
+  .pill.devoto { background: var(--devoto); }
+  .pill.tiendainglesa { background: var(--tiendainglesa); }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  @media (max-width: 600px) {
+    h1 { font-size: 18px; }
+    table { font-size: 12px; }
+    tbody td { padding: 8px 6px; }
+    td.brand { display: none; }
+    thead th:nth-child(3) { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div>
+      <h1>Precios Grupo Bimbo · Supermercados Uruguay</h1>
+      <div class="sub" id="meta">Cargando…</div>
+    </div>
+    <div class="downloads">
+      <button class="btn primary" id="refreshBtn">Actualizar precios</button>
+      <a class="btn" href="/data/latest.csv" download>CSV</a>
+      <a class="btn" href="/data/latest.pdf" download>PDF</a>
+      <a class="btn" href="/data/latest.json" download>JSON</a>
+    </div>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="filters">
+    <input id="q" placeholder="Buscar producto…" autocomplete="off" />
+    <div class="chips" id="brandChips"></div>
+    <div class="chips" id="superChips"></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th data-sort="name">Producto</th>
+        <th data-sort="brand">Marca</th>
+        <th data-sort="super">Super</th>
+        <th data-sort="price" class="sorted asc">Precio</th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="empty" id="empty" style="display:none">No hay productos que matcheen.</div>
+</div>
+
+<script>
+const SUPER_LABEL = { tata: 'Tata', disco: 'Disco', devoto: 'Devoto', tiendainglesa: 'Tienda Inglesa' };
+const state = {
+  items: [],
+  q: '',
+  brands: new Set(),
+  supers: new Set(),
+  sort: { key: 'price', asc: true },
+};
+
+function load() {
+  return fetch('/data/latest.json', { cache: 'no-store' })
+    .then((r) => r.ok ? r.json() : Promise.reject(new Error('No se pudo cargar /data/latest.json')))
+    .then((data) => {
+      state.items = data.items || [];
+      const date = new Date(data.generatedAt).toLocaleString('es-UY', { dateStyle: 'long', timeStyle: 'short' });
+      document.getElementById('meta').textContent = `Última actualización: ${date} · ${state.items.length} productos`;
+      buildSummary();
+      buildChips();
+      render();
+    })
+    .catch((err) => {
+      document.getElementById('meta').textContent = 'No hay datos todavía. Esperá al primer scrape.';
+      console.error(err);
+    });
+}
+
+function buildSummary() {
+  const perSuper = state.items.reduce((acc, i) => ((acc[i.super] = (acc[i.super] || 0) + 1), acc), {});
+  const html = [
+    `<div class="box"><b>${state.items.length}</b><span>productos</span></div>`,
+    ...Object.entries(perSuper).map(([s, n]) => `<div class="box"><b>${n}</b><span>${SUPER_LABEL[s] || s}</span></div>`),
+  ].join('');
+  document.getElementById('summary').innerHTML = html;
+}
+
+function buildChips() {
+  const brands = [...new Set(state.items.map((i) => i.brand))].sort();
+  const supers = [...new Set(state.items.map((i) => i.super))].sort();
+
+  document.getElementById('brandChips').innerHTML = brands.map((b) =>
+    `<span class="chip" data-brand="${b}">${b.replace(/\b\w/g, (c) => c.toUpperCase())}</span>`).join('');
+  document.getElementById('superChips').innerHTML = supers.map((s) =>
+    `<span class="chip" data-super="${s}">${SUPER_LABEL[s] || s}</span>`).join('');
+
+  document.querySelectorAll('.chip[data-brand]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const b = el.dataset.brand;
+      if (state.brands.has(b)) state.brands.delete(b); else state.brands.add(b);
+      el.classList.toggle('active');
+      render();
+    });
+  });
+  document.querySelectorAll('.chip[data-super]').forEach((el) => {
+    el.addEventListener('click', () => {
+      const s = el.dataset.super;
+      if (state.supers.has(s)) state.supers.delete(s); else state.supers.add(s);
+      el.classList.toggle('active');
+      render();
+    });
+  });
+}
+
+function filtered() {
+  const q = state.q.toLowerCase().trim();
+  return state.items.filter((i) => {
+    if (q && !i.name.toLowerCase().includes(q)) return false;
+    if (state.brands.size && !state.brands.has(i.brand)) return false;
+    if (state.supers.size && !state.supers.has(i.super)) return false;
+    return true;
+  });
+}
+
+function sorted(arr) {
+  const { key, asc } = state.sort;
+  const dir = asc ? 1 : -1;
+  return arr.slice().sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+    return String(va).localeCompare(String(vb), 'es') * dir;
+  });
+}
+
+function fmtPrice(p) { return p == null ? '—' : '$ ' + p.toLocaleString('es-UY'); }
+
+function render() {
+  const items = sorted(filtered());
+  const tbody = document.getElementById('rows');
+  const empty = document.getElementById('empty');
+  if (!items.length) {
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = items.map((i) => `
+    <tr>
+      <td>${i.url ? `<a href="${i.url}" target="_blank" rel="noopener">${escape(i.name)}</a>` : escape(i.name)}</td>
+      <td class="brand">${escape(i.brand)}</td>
+      <td><span class="pill ${i.super}">${SUPER_LABEL[i.super] || i.super}</span></td>
+      <td class="price">${fmtPrice(i.price)}</td>
+    </tr>`).join('');
+}
+
+function escape(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+// Botón "Actualizar precios": dispara workflow en GitHub y hace polling hasta que termine
+const refreshBtn = document.getElementById('refreshBtn');
+
+function toast(msg, isError = false) {
+  document.querySelectorAll('.toast').forEach((t) => t.remove());
+  const el = document.createElement('div');
+  el.className = 'toast' + (isError ? ' error' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 6000);
+}
+
+async function pollUntilDone(initialGeneratedAt) {
+  // Espera hasta 8 minutos. Considera "listo" cuando cambia el generatedAt del latest.json.
+  const start = Date.now();
+  const maxMs = 8 * 60 * 1000;
+  while (Date.now() - start < maxMs) {
+    await new Promise((r) => setTimeout(r, 15000));
+    try {
+      const r = await fetch('/data/latest.json', { cache: 'no-store' });
+      if (r.ok) {
+        const d = await r.json();
+        if (d.generatedAt && d.generatedAt !== initialGeneratedAt) {
+          return d;
+        }
+      }
+      // También consultamos status para mostrar progreso
+      const s = await fetch('/api/status', { cache: 'no-store' });
+      if (s.ok) {
+        const sd = await s.json();
+        const elapsedSec = Math.round((Date.now() - start) / 1000);
+        refreshBtn.textContent = `Actualizando… (${sd.status || '...'}, ${elapsedSec}s)`;
+        if (sd.status === 'completed' && sd.conclusion === 'failure') {
+          throw new Error('El scrape fallo. Mira los logs en GitHub Actions.');
+        }
+      }
+    } catch (e) {
+      console.warn('poll error', e);
+    }
+  }
+  throw new Error('Timeout esperando el nuevo scrape (>8 min).');
+}
+
+refreshBtn.addEventListener('click', async () => {
+  refreshBtn.disabled = true;
+  const original = refreshBtn.textContent;
+  const initialGeneratedAt = state.items.length
+    ? (await fetch('/data/latest.json', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({}))).generatedAt
+    : null;
+  try {
+    refreshBtn.textContent = 'Disparando…';
+    const resp = await fetch('/api/refresh', { method: 'POST' });
+    const data = await resp.json();
+    if (!resp.ok || data.ok === false) {
+      throw new Error(data.error || `HTTP ${resp.status}`);
+    }
+    toast('Scrape disparado. Esperando resultados (~3-5 min)…');
+    refreshBtn.textContent = 'Actualizando…';
+    await pollUntilDone(initialGeneratedAt);
+    toast('Listo. Datos actualizados.');
+    await load();
+  } catch (err) {
+    toast('Error: ' + err.message, true);
+  } finally {
+    refreshBtn.disabled = false;
+    refreshBtn.textContent = original;
+  }
+});
+
+document.getElementById('q').addEventListener('input', (e) => { state.q = e.target.value; render(); });
+document.querySelectorAll('th[data-sort]').forEach((th) => {
+  th.addEventListener('click', () => {
+    const key = th.dataset.sort;
+    if (state.sort.key === key) state.sort.asc = !state.sort.asc;
+    else state.sort = { key, asc: key !== 'price' };
+    document.querySelectorAll('th[data-sort]').forEach((x) => x.classList.remove('sorted', 'asc'));
+    th.classList.add('sorted');
+    if (state.sort.asc) th.classList.add('asc');
+    render();
+  });
+});
+
+load();
+</script>
+</body>
+</html>

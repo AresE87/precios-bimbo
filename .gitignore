@@ -1,0 +1,10 @@
+node_modules/
+data/recon/
+data/recon_search/
+data/catalog/
+*.log
+.env
+.DS_Store
+.vercel
+.claude/
+memory/
