@@ -11,7 +11,9 @@ const state = {
   items: [],
   groups: { bimbo: [] },
   suggested: null,
-  priceList: [],
+  priceList: [],       // lista cargada manualmente por el usuario
+  builtinPvp: [],      // lista PVP embebida (pvp.json de los Excel del usuario)
+  pvpMeta: null,       // { vigencia, generatedAt }
   generatedAt: null,
   view: 'catalog',
   history: null,           // array de snapshots {t, prices}
@@ -239,6 +241,37 @@ function rowsFromJson(text) {
   return Array.isArray(parsed) ? parsed : (parsed.rows || parsed.items || []);
 }
 
+// Parsea un Excel de lista de precios Bimbo (múltiples pestañas).
+// Detecta la fila de encabezados buscando "descripci" y extrae producto+pvp de cada pestaña.
+// Devuelve filas en el mismo formato que rowsFromCsv para que pasen por normalizePriceRows.
+function rowsFromExcel(buffer, storeOverride) {
+  if (typeof XLSX === 'undefined') throw new Error('Librería Excel no cargó. Revisá tu conexión a internet.');
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const allRows = [];
+  for (const sheetName of wb.SheetNames) {
+    const ws = wb.Sheets[sheetName];
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!raw.length) continue;
+    // Buscar fila de encabezados (la que tenga 'descripci')
+    let headerIdx = -1;
+    for (let i = 0; i < raw.length; i++) {
+      if (raw[i].some((c) => String(c).toLowerCase().includes('descripci'))) {
+        headerIdx = i;
+        break;
+      }
+    }
+    if (headerIdx < 0) continue;
+    const headers = raw[headerIdx].map(headerKey);
+    for (const row of raw.slice(headerIdx + 1)) {
+      if (!row.some((v) => String(v).trim())) continue;
+      const record = {};
+      headers.forEach((key, i) => { record[key] = row[i] ?? ''; });
+      allRows.push(record);
+    }
+  }
+  return allRows;
+}
+
 function normalizePriceRows(rows, storeOverride = '', source = 'archivo') {
   const override = normalizeStore(storeOverride);
   const diagnostics = { noStore: 0, noPrice: 0, noProduct: 0 };
@@ -306,6 +339,57 @@ function scorePriceRow(row, item) {
   return (row.brand ? 30 : 8) + sizeBonus + Math.round(ratio * 35);
 }
 
+// Convierte una fila de pvp.json al formato usado por scorePriceRow
+function pvpRowToLocal(r) {
+  return {
+    stores: [r.super],
+    sku: r.ean || r.sku || '',      // preferir EAN para match exacto
+    skuBimbo: r.sku || '',
+    skuCadena: r.skuCadena || '',
+    brand: normalizeBrand(r.sheet || ''),  // sheet = Panes/Snacks/Galletas → brand fallback
+    product: r.producto || '',
+    price: r.pvp,
+    source: `PVP ${r.super} ${r.sheet || ''}`.trim(),
+  };
+}
+
+// Match contra la lista embebida pvp.json.
+// Prioridad: EAN exacto > SKU Bimbo > SKU cadena > nombre
+function matchBuiltinPvp(item) {
+  if (!state.builtinPvp.length) return null;
+  const itemEan = String(item.ean || item.barcode || '').trim();
+  const itemSku = String(item.sku || '').trim();
+
+  // 1. EAN exacto
+  if (itemEan) {
+    const byEan = state.builtinPvp.find(
+      (r) => r.super === item.super && r.ean && r.ean === itemEan
+    );
+    if (byEan) return byEan;
+  }
+  // 2. SKU Bimbo exacto
+  if (itemSku) {
+    const bySku = state.builtinPvp.find(
+      (r) => r.super === item.super && r.sku && r.sku === itemSku
+    );
+    if (bySku) return bySku;
+    // SKU cadena exacto
+    const bySkuC = state.builtinPvp.find(
+      (r) => r.super === item.super && r.skuCadena && r.skuCadena === itemSku
+    );
+    if (bySkuC) return bySkuC;
+  }
+  // 3. Matching por nombre (mismo algoritmo que scorePriceRow pero sobre builtinPvp)
+  const candidates = state.builtinPvp.filter((r) => r.super === item.super);
+  let best = null;
+  for (const r of candidates) {
+    const score = scorePriceRow(pvpRowToLocal(r), item);
+    if (score == null) continue;
+    if (!best || score > best.score) best = { r, score };
+  }
+  return best && best.score >= 40 ? best.r : null;
+}
+
 function matchLocalSuggested(item) {
   let best = null;
   for (const row of state.priceList) {
@@ -324,8 +408,13 @@ function gapStatus(gap) {
 }
 
 function suggestedFor(item) {
+  // 1. Lista cargada manualmente por el usuario (máxima prioridad)
   const local = matchLocalSuggested(item);
   if (local) return { price: local.price, product: local.product, source: local.source || 'lista local', local: true };
+  // 2. Lista PVP embebida desde los Excel del usuario
+  const builtin = matchBuiltinPvp(item);
+  if (builtin) return { price: builtin.pvp, product: builtin.producto, source: `PVP ${builtin.super}`, local: true };
+  // 3. PVP del backend (archivo suggested del scraper)
   if (item.suggestedPrice != null) {
     return { price: item.suggestedPrice, product: item.suggestedProduct, source: item.suggestedSource || 'archivo backend', local: false };
   }
@@ -352,10 +441,24 @@ function gapCell(item) {
 }
 
 // ===== Carga =====
-async function load() {
+async function loadBuiltinPvp() {
   try {
-    const r = await fetch('/data/latest.json', { cache: 'no-store' });
-    if (!r.ok) throw new Error('No se pudo cargar latest.json');
+    const r = await fetch('/data/pvp.json', { cache: 'no-store' });
+    if (!r.ok) return;
+    const data = await r.json();
+    state.builtinPvp = data.rows || [];
+    state.pvpMeta = { vigencia: data.vigencia, generatedAt: data.generatedAt };
+  } catch (e) { console.warn('pvp.json no disponible:', e.message); }
+}
+
+async function load() {
+  const [, latestResult] = await Promise.allSettled([
+    loadBuiltinPvp(),
+    fetch('/data/latest.json', { cache: 'no-store' }),
+  ]);
+  try {
+    const r = latestResult.value;
+    if (!r || !r.ok) throw new Error('No se pudo cargar latest.json');
     const data = await r.json();
     state.items = (data.items || []).map(normalizeLoadedItem).filter(Boolean);
     state.groups = { bimbo: PORTFOLIO_BRANDS };
@@ -614,13 +717,15 @@ function renderPrices() {
     ok: withPvp.filter((i) => gapStatus(gapFor(i)) === 'ok').length,
     below: withPvp.filter((i) => gapStatus(gapFor(i)) === 'below').length,
     local: state.items.filter((i) => matchLocalSuggested(i)).length,
+    builtin: state.items.filter((i) => matchBuiltinPvp(i)).length,
   };
-  const backendRows = state.suggested?.rowsWithSuggested || 0;
+  const vigencia = state.pvpMeta?.vigencia ? ` · ${state.pvpMeta.vigencia}` : '';
   $('#priceSummary').innerHTML = `
     <div class="suggested-card above"><div class="suggested-card-label">Sobre PVP</div><div class="suggested-card-value">${stats.above}</div></div>
     <div class="suggested-card ok"><div class="suggested-card-label">En linea</div><div class="suggested-card-value">${stats.ok}</div></div>
     <div class="suggested-card below"><div class="suggested-card-label">Bajo PVP</div><div class="suggested-card-value">${stats.below}</div></div>
-    <div class="suggested-card"><div class="suggested-card-label">Lista local</div><div class="suggested-card-value">${localRows.length}</div><div class="suggested-ref">${stats.local} matches locales - ${backendRows} backend</div></div>
+    <div class="suggested-card azul"><div class="suggested-card-label">PVP embebido</div><div class="suggested-card-value">${state.builtinPvp.length}</div><div class="suggested-ref">${stats.builtin} matches${vigencia}</div></div>
+    <div class="suggested-card"><div class="suggested-card-label">Lista manual</div><div class="suggested-card-value">${localRows.length}</div><div class="suggested-ref">${stats.local} matches locales</div></div>
   `;
 
   const tbody = $('#priceRows');
@@ -1061,13 +1166,22 @@ async function refresh() {
 async function importPriceList() {
   const file = $('#priceFile').files?.[0];
   if (!file) {
-    toast('Selecciona un archivo CSV o JSON.', 'error');
+    toast('Seleccioná un archivo CSV, JSON o Excel (.xlsx).', 'error');
     return;
   }
   try {
-    const text = await file.text();
-    const rawRows = file.name.toLowerCase().endsWith('.json') ? rowsFromJson(text) : rowsFromCsv(text);
-    const rows = normalizePriceRows(rawRows, $('#priceStore').value, file.name);
+    const name = file.name.toLowerCase();
+    const storeOverride = $('#priceStore').value;
+    let rawRows;
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      const buffer = await file.arrayBuffer();
+      rawRows = rowsFromExcel(new Uint8Array(buffer), storeOverride);
+    } else if (name.endsWith('.json')) {
+      rawRows = rowsFromJson(await file.text());
+    } else {
+      rawRows = rowsFromCsv(await file.text());
+    }
+    const rows = normalizePriceRows(rawRows, storeOverride, file.name);
     const d = rows._diagnostics || {};
     if (!rows.length) {
       const hints = [];

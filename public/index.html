@@ -122,7 +122,7 @@
     <div class="panel">
       <h2 class="panel-title">Lista PVP - <span id="priceListCount">0</span> lineas</h2>
       <div class="price-upload-grid">
-        <input type="file" id="priceFile" accept=".csv,.json,application/json,text/csv" />
+        <input type="file" id="priceFile" accept=".csv,.json,.xlsx,.xls" />
         <select id="priceStore">
           <option value="">Usar cadena del archivo</option>
           <option value="tata">Tata</option>
@@ -137,17 +137,17 @@
       <details style="margin:10px 0 4px;font-size:12px;color:var(--texto-muted)">
         <summary style="cursor:pointer;font-weight:600">Formato del archivo CSV</summary>
         <div style="margin-top:8px;padding:10px 12px;background:var(--crema);border-radius:8px;line-height:1.7">
-          <b>Columnas aceptadas (encabezados flexibles):</b><br>
+          <b>Formatos aceptados:</b> Excel (.xlsx), CSV (.csv), JSON (.json)<br><br>
+          <b>Excel Bimbo (listas de precio con pestañas):</b> se detectan automáticamente las columnas
+          "Descripción Producto" y "PVP" en cada pestaña. Seleccioná la cadena en el menú de arriba.<br><br>
+          <b>CSV — columnas aceptadas:</b><br>
           &bull; <code>producto</code> o <code>nombre</code> — descripcion del producto (requerido)<br>
           &bull; <code>pvp_sugerido</code>, <code>pvp</code> o <code>precio</code> — precio sugerido (requerido)<br>
-          &bull; <code>super</code> o <code>cadena</code> — Tata, Disco, El Dorado, Tienda Inglesa, todos (opcional: si se omite aplica a todas)<br>
-          &bull; <code>marca</code> — submarca Bimbo (opcional pero mejora el matching)<br>
-          &bull; <code>sku</code> — codigo de producto para match exacto (opcional)<br>
+          &bull; <code>super</code> o <code>cadena</code> — Tata, Disco, El Dorado, Tienda Inglesa, todos<br>
+          &bull; <code>marca</code> — submarca Bimbo (mejora el matching)<br>
+          &bull; <code>sku</code> o <code>barras</code> — para match exacto<br>
           <br>
-          <b>Ejemplo minimo:</b><br>
-          <code>producto,pvp<br>Pan Lacteado 590g,150<br>Rapiditas Tradicional 10 un,172</code><br>
-          <br>
-          <b>Si tu archivo no tiene columna de cadena</b>, selecciona una cadena del menu o deja "Usar cadena del archivo" para aplicar a todas.
+          <b>Nota:</b> el PVP embebido (tus 4 listas de Junio 2026) se carga automáticamente — esta sección es para actualizaciones o listas adicionales.
         </div>
       </details>
       <div class="suggested-summary" id="priceSummary"></div>
@@ -175,6 +175,7 @@
   </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
