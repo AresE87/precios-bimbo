@@ -4,14 +4,15 @@ const SUPER_LABEL = { tata: 'Tata', disco: 'Disco', eldorado: 'El Dorado', tiend
 const SUPERS = ['tata', 'disco', 'eldorado', 'tiendainglesa'];
 const GROUP_LABEL = { bimbo: 'Grupo Bimbo' };
 const PORTFOLIO_BRANDS = ['los sorchantes', 'tia rosa', 'bimbo', 'rapiditas', 'artesano', 'maestro cubano', 'merienda hit', 'merienda xl', 'takis', 'salmas', 'nutrabien'];
-const PRICE_LIST_KEY = 'precios-bimbo-pvp-v1';
+const PRICE_LIST_KEY = 'precios-bimbo-pvp-v3';
 const GAP_LABEL = { above: 'Sobre PVP', ok: 'En linea', below: 'Bajo PVP' };
 
 const state = {
   items: [],
   groups: { bimbo: [] },
   suggested: null,
-  priceList: [],       // lista cargada manualmente por el usuario
+  priceList: [],       // lista cargada manualmente por el usuario (flat, merged)
+  perSuperLists: { tata: [], disco: [], eldorado: [], tiendainglesa: [] },
   builtinPvp: [],      // lista PVP embebida (pvp.json de los Excel del usuario)
   pvpMeta: null,       // { vigencia, generatedAt }
   generatedAt: null,
@@ -241,24 +242,32 @@ function rowsFromJson(text) {
   return Array.isArray(parsed) ? parsed : (parsed.rows || parsed.items || []);
 }
 
-// Parsea un Excel de lista de precios Bimbo (múltiples pestañas).
-// Detecta la fila de encabezados buscando "descripci" y extrae producto+pvp de cada pestaña.
-// Devuelve filas en el mismo formato que rowsFromCsv para que pasen por normalizePriceRows.
-function rowsFromExcel(buffer, storeOverride) {
-  if (typeof XLSX === 'undefined') throw new Error('Librería Excel no cargó. Revisá tu conexión a internet.');
+// Parsea un Excel: toma la primera hoja con sheet_to_json, normaliza claves.
+// Si la primera hoja está vacía, hace fallback multi-pestaña buscando 'descripci' en encabezados.
+function rowsFromExcel(buffer) {
+  if (typeof XLSX === 'undefined') throw new Error('Libreria Excel no cargo. Revisa tu conexion a internet.');
   const wb = XLSX.read(buffer, { type: 'array' });
+  const firstSheetName = wb.SheetNames[0];
+  if (firstSheetName) {
+    const ws = wb.Sheets[firstSheetName];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (rows.length) {
+      return rows.map((row) => {
+        const norm = {};
+        for (const [k, v] of Object.entries(row)) norm[headerKey(k)] = v;
+        return norm;
+      });
+    }
+  }
+  // Multi-sheet fallback
   const allRows = [];
   for (const sheetName of wb.SheetNames) {
     const ws = wb.Sheets[sheetName];
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
     if (!raw.length) continue;
-    // Buscar fila de encabezados (la que tenga 'descripci')
     let headerIdx = -1;
     for (let i = 0; i < raw.length; i++) {
-      if (raw[i].some((c) => String(c).toLowerCase().includes('descripci'))) {
-        headerIdx = i;
-        break;
-      }
+      if (raw[i].some((c) => String(c).toLowerCase().includes('descripci'))) { headerIdx = i; break; }
     }
     if (headerIdx < 0) continue;
     const headers = raw[headerIdx].map(headerKey);
@@ -276,14 +285,14 @@ function normalizePriceRows(rows, storeOverride = '', source = 'archivo') {
   const override = normalizeStore(storeOverride);
   const diagnostics = { noStore: 0, noPrice: 0, noProduct: 0 };
   const result = rows.map((row, index) => {
-    const rawStore = override || pick(row, ['super', 'cadena', 'supermercado', 'tienda']);
-    const store = normalizeStore(rawStore);
-    // If no store specified at all (no column, no override) → apply to all stores.
-    // If store name provided but unrecognized → reject the row.
+    // If storeOverride given, ALL rows use that store (ignore file column)
+    const rawStore = override ? '' : pick(row, ['super', 'cadena', 'supermercado', 'tienda']);
+    const store = override || normalizeStore(rawStore);
+    // no store and no column → apply to all supers; unrecognized → reject
     const stores = store === 'all' ? SUPERS : (store ? [store] : (rawStore ? [] : SUPERS));
-    const product = String(pick(row, ['producto', 'nombre', 'descripcion', 'articulo'])).trim();
+    const product = String(pick(row, ['producto', 'nombre', 'descripcion', 'articulo', 'description'])).trim();
     const brand = normalizeBrand(pick(row, ['marca', 'brand', 'submarca']));
-    const price = numberOrNull(pick(row, ['pvp_sugerido', 'pvpSugerido', 'precio_sugerido', 'precioSugerido', 'suggestedPrice', 'pvs', 'pvp', 'precio']));
+    const price = numberOrNull(pick(row, ['mi_pvp', 'mipvp', 'pvp_sugerido', 'pvpSugerido', 'precio_sugerido', 'precioSugerido', 'suggestedPrice', 'pvs', 'pvp', 'precio']));
     const sku = String(pick(row, ['sku', 'codigo', 'id_producto', 'id'])).trim();
     if (!stores.length) { diagnostics.noStore++; return null; }
     if (price == null) { diagnostics.noPrice++; return null; }
@@ -294,16 +303,40 @@ function normalizePriceRows(rows, storeOverride = '', source = 'archivo') {
   return result;
 }
 
+function rebuildFlatPriceList() {
+  state.priceList = [
+    ...state.perSuperLists.tata,
+    ...state.perSuperLists.disco,
+    ...state.perSuperLists.eldorado,
+    ...state.perSuperLists.tiendainglesa,
+  ];
+}
+
 function loadLocalPriceList() {
   try {
-    state.priceList = JSON.parse(localStorage.getItem(PRICE_LIST_KEY) || '[]');
+    const saved = JSON.parse(localStorage.getItem(PRICE_LIST_KEY) || 'null');
+    if (saved && saved.perSuperLists) {
+      state.perSuperLists = {
+        tata: saved.perSuperLists.tata || [],
+        disco: saved.perSuperLists.disco || [],
+        eldorado: saved.perSuperLists.eldorado || [],
+        tiendainglesa: saved.perSuperLists.tiendainglesa || [],
+      };
+    } else if (Array.isArray(saved)) {
+      // legacy flat list migration: put everything in tata as fallback
+      state.perSuperLists = { tata: saved, disco: [], eldorado: [], tiendainglesa: [] };
+    } else {
+      state.perSuperLists = { tata: [], disco: [], eldorado: [], tiendainglesa: [] };
+    }
   } catch {
-    state.priceList = [];
+    state.perSuperLists = { tata: [], disco: [], eldorado: [], tiendainglesa: [] };
   }
+  rebuildFlatPriceList();
 }
 
 function saveLocalPriceList() {
-  localStorage.setItem(PRICE_LIST_KEY, JSON.stringify(state.priceList));
+  localStorage.setItem(PRICE_LIST_KEY, JSON.stringify({ perSuperLists: state.perSuperLists }));
+  rebuildFlatPriceList();
 }
 
 function sizeCompatible(rowSize, itemSize) {
@@ -320,14 +353,7 @@ function scorePriceRow(row, item) {
 
   const rowSize = extractSize(row.product || '');
   const itemSize = extractSize(item.name || '');
-  // Only reject if BOTH have sizes with incompatible units. If one is missing, skip size bonus.
-  const sizesKnown = rowSize && itemSize;
-  if (sizesKnown && rowSize.unit !== itemSize.unit) return null;
-  if (sizesKnown) {
-    const ratio = Math.min(rowSize.value, itemSize.value) / Math.max(rowSize.value, itemSize.value);
-    if (ratio < 0.85) return null;
-  }
-  const sizeBonus = sizesKnown ? 35 : 0;
+  if (!sizeCompatible(rowSize, itemSize)) return null;
 
   const wanted = tokenize(row.product || '');
   const got = tokenize(item.name || '');
@@ -335,59 +361,8 @@ function scorePriceRow(row, item) {
   let overlap = 0;
   for (const token of wanted) if (got.has(token)) overlap += 1;
   const ratio = overlap / wanted.size;
-  if (ratio < (sizeBonus ? 0.2 : 0.45)) return null;
-  return (row.brand ? 30 : 8) + sizeBonus + Math.round(ratio * 35);
-}
-
-// Convierte una fila de pvp.json al formato usado por scorePriceRow
-function pvpRowToLocal(r) {
-  return {
-    stores: [r.super],
-    sku: r.ean || r.sku || '',      // preferir EAN para match exacto
-    skuBimbo: r.sku || '',
-    skuCadena: r.skuCadena || '',
-    brand: normalizeBrand(r.sheet || ''),  // sheet = Panes/Snacks/Galletas → brand fallback
-    product: r.producto || '',
-    price: r.pvp,
-    source: `PVP ${r.super} ${r.sheet || ''}`.trim(),
-  };
-}
-
-// Match contra la lista embebida pvp.json.
-// Prioridad: EAN exacto > SKU Bimbo > SKU cadena > nombre
-function matchBuiltinPvp(item) {
-  if (!state.builtinPvp.length) return null;
-  const itemEan = String(item.ean || item.barcode || '').trim();
-  const itemSku = String(item.sku || '').trim();
-
-  // 1. EAN exacto
-  if (itemEan) {
-    const byEan = state.builtinPvp.find(
-      (r) => r.super === item.super && r.ean && r.ean === itemEan
-    );
-    if (byEan) return byEan;
-  }
-  // 2. SKU Bimbo exacto
-  if (itemSku) {
-    const bySku = state.builtinPvp.find(
-      (r) => r.super === item.super && r.sku && r.sku === itemSku
-    );
-    if (bySku) return bySku;
-    // SKU cadena exacto
-    const bySkuC = state.builtinPvp.find(
-      (r) => r.super === item.super && r.skuCadena && r.skuCadena === itemSku
-    );
-    if (bySkuC) return bySkuC;
-  }
-  // 3. Matching por nombre (mismo algoritmo que scorePriceRow pero sobre builtinPvp)
-  const candidates = state.builtinPvp.filter((r) => r.super === item.super);
-  let best = null;
-  for (const r of candidates) {
-    const score = scorePriceRow(pvpRowToLocal(r), item);
-    if (score == null) continue;
-    if (!best || score > best.score) best = { r, score };
-  }
-  return best && best.score >= 40 ? best.r : null;
+  if (ratio < (rowSize ? 0.2 : 0.45)) return null;
+  return (row.brand ? 30 : 8) + (rowSize ? 35 : 0) + Math.round(ratio * 35);
 }
 
 function matchLocalSuggested(item) {
@@ -408,13 +383,8 @@ function gapStatus(gap) {
 }
 
 function suggestedFor(item) {
-  // 1. Lista cargada manualmente por el usuario (máxima prioridad)
   const local = matchLocalSuggested(item);
   if (local) return { price: local.price, product: local.product, source: local.source || 'lista local', local: true };
-  // 2. Lista PVP embebida desde los Excel del usuario
-  const builtin = matchBuiltinPvp(item);
-  if (builtin) return { price: builtin.pvp, product: builtin.producto, source: `PVP ${builtin.super}`, local: true };
-  // 3. PVP del backend (archivo suggested del scraper)
   if (item.suggestedPrice != null) {
     return { price: item.suggestedPrice, product: item.suggestedProduct, source: item.suggestedSource || 'archivo backend', local: false };
   }
@@ -441,24 +411,10 @@ function gapCell(item) {
 }
 
 // ===== Carga =====
-async function loadBuiltinPvp() {
-  try {
-    const r = await fetch('/data/pvp.json', { cache: 'no-store' });
-    if (!r.ok) return;
-    const data = await r.json();
-    state.builtinPvp = data.rows || [];
-    state.pvpMeta = { vigencia: data.vigencia, generatedAt: data.generatedAt };
-  } catch (e) { console.warn('pvp.json no disponible:', e.message); }
-}
-
 async function load() {
-  const [, latestResult] = await Promise.allSettled([
-    loadBuiltinPvp(),
-    fetch('/data/latest.json', { cache: 'no-store' }),
-  ]);
   try {
-    const r = latestResult.value;
-    if (!r || !r.ok) throw new Error('No se pudo cargar latest.json');
+    const r = await fetch('/data/latest.json', { cache: 'no-store' });
+    if (!r.ok) throw new Error('No se pudo cargar latest.json');
     const data = await r.json();
     state.items = (data.items || []).map(normalizeLoadedItem).filter(Boolean);
     state.groups = { bimbo: PORTFOLIO_BRANDS };
@@ -709,6 +665,92 @@ function renderOffers() {
   $('#offersCount').textContent = filtered.length;
 }
 
+function renderPerSuperUploads() {
+  const container = $('#perSuperUploads');
+  if (!container) return;
+  const superDefs = [
+    { key: 'tata', label: 'Tata' },
+    { key: 'disco', label: 'Disco' },
+    { key: 'eldorado', label: 'El Dorado' },
+    { key: 'tiendainglesa', label: 'Tienda Inglesa' },
+  ];
+  container.innerHTML = superDefs.map(({ key, label }) => {
+    const rows = state.perSuperLists[key] || [];
+    const count = rows.length;
+    const preview = count > 0 ? rows.slice(0, 3).map((r) => escape(r.product || r.sku || '-')).join(', ') : '';
+    return `<div class="super-upload-card">
+      <div class="super-upload-header">
+        <span class="pill ${key}">${label}</span>
+        <span class="super-upload-count">${count} lineas cargadas</span>
+      </div>
+      <div class="super-upload-controls">
+        <label class="btn" for="priceFile_${key}" style="cursor:pointer">📂 Cargar lista</label>
+        <input type="file" id="priceFile_${key}" accept=".xlsx,.xls,.csv,.json,application/json,text/csv" style="display:none" data-super="${key}" />
+        <button class="btn danger-sm" data-clear-super="${key}" style="display:${count > 0 ? 'inline-flex' : 'none'}">Limpiar</button>
+      </div>
+      ${count > 0 ? `<div class="super-upload-preview">${preview}${count > 3 ? '…' : ''}</div>` : ''}
+    </div>`;
+  }).join('');
+
+  // Bind file inputs
+  superDefs.forEach(({ key }) => {
+    const input = container.querySelector(`#priceFile_${key}`);
+    if (input) {
+      input.addEventListener('change', (e) => {
+        const file = e.target.files?.[0];
+        if (file) importPriceListForSuper(key, file).finally(() => { input.value = ''; });
+      });
+    }
+    const clearBtn = container.querySelector(`[data-clear-super="${key}"]`);
+    if (clearBtn) {
+      clearBtn.addEventListener('click', () => clearSuperPriceList(key));
+    }
+  });
+}
+
+async function importPriceListForSuper(superKey, file) {
+  try {
+    const name = file.name.toLowerCase();
+    let rawRows;
+    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+      const buffer = await file.arrayBuffer();
+      rawRows = rowsFromExcel(new Uint8Array(buffer));
+    } else if (name.endsWith('.json')) {
+      rawRows = rowsFromJson(await file.text());
+    } else {
+      rawRows = rowsFromCsv(await file.text());
+    }
+    const rows = normalizePriceRows(rawRows, superKey, file.name);
+    const d = rows._diagnostics || {};
+    if (!rows.length) {
+      const hints = [];
+      if (d.noPrice > 0) hints.push(`${d.noPrice} filas sin precio (columna: MI PVP, pvp o precio)`);
+      if (d.noProduct > 0) hints.push(`${d.noProduct} filas sin producto`);
+      throw new Error('No se encontraron filas validas.' + (hints.length ? ' ' + hints.join('; ') + '.' : ''));
+    }
+    state.perSuperLists[superKey] = rows;
+    rebuildFlatPriceList();
+    saveLocalPriceList();
+    renderPrices();
+    updateTabBadges();
+    const warnParts = [];
+    if (d.noPrice > 0) warnParts.push(`${d.noPrice} sin precio`);
+    const warn = warnParts.length ? ` (ignoradas: ${warnParts.join(', ')})` : '';
+    toast(`Lista ${SUPER_LABEL[superKey]}: ${rows.length} lineas importadas${warn}.`, 'success');
+  } catch (err) {
+    toast('Error importando: ' + err.message, 'error');
+  }
+}
+
+function clearSuperPriceList(superKey) {
+  state.perSuperLists[superKey] = [];
+  rebuildFlatPriceList();
+  saveLocalPriceList();
+  renderPrices();
+  updateTabBadges();
+  toast(`Lista ${SUPER_LABEL[superKey]} limpiada.`, 'success');
+}
+
 function renderPrices() {
   const localRows = state.priceList || [];
   const withPvp = state.items.filter((i) => suggestedFor(i)?.price != null);
@@ -717,36 +759,44 @@ function renderPrices() {
     ok: withPvp.filter((i) => gapStatus(gapFor(i)) === 'ok').length,
     below: withPvp.filter((i) => gapStatus(gapFor(i)) === 'below').length,
     local: state.items.filter((i) => matchLocalSuggested(i)).length,
-    builtin: state.items.filter((i) => matchBuiltinPvp(i)).length,
   };
-  const vigencia = state.pvpMeta?.vigencia ? ` · ${state.pvpMeta.vigencia}` : '';
-  $('#priceSummary').innerHTML = `
-    <div class="suggested-card above"><div class="suggested-card-label">Sobre PVP</div><div class="suggested-card-value">${stats.above}</div></div>
-    <div class="suggested-card ok"><div class="suggested-card-label">En linea</div><div class="suggested-card-value">${stats.ok}</div></div>
-    <div class="suggested-card below"><div class="suggested-card-label">Bajo PVP</div><div class="suggested-card-value">${stats.below}</div></div>
-    <div class="suggested-card azul"><div class="suggested-card-label">PVP embebido</div><div class="suggested-card-value">${state.builtinPvp.length}</div><div class="suggested-ref">${stats.builtin} matches${vigencia}</div></div>
-    <div class="suggested-card"><div class="suggested-card-label">Lista manual</div><div class="suggested-card-value">${localRows.length}</div><div class="suggested-ref">${stats.local} matches locales</div></div>
-  `;
-
-  const tbody = $('#priceRows');
-  const empty = $('#priceEmpty');
-  if (!localRows.length) {
-    tbody.innerHTML = '';
-    empty.style.display = 'block';
-  } else {
-    empty.style.display = 'none';
-    tbody.innerHTML = localRows.slice(0, 100).map((row) => {
-      const matches = state.items.filter((item) => scorePriceRow(row, item) != null).length;
-      return `<tr>
-        <td>${escape(row.product || row.sku || '-')}</td>
-        <td class="brand">${escape(row.brand || '-')}</td>
-        <td>${row.stores.map((s) => `<span class="pill ${s}">${SUPER_LABEL[s] || s}</span>`).join(' ')}</td>
-        <td class="price">${fmtPrice(row.price)}</td>
-        <td><span class="suggested-badge ${matches ? 'ok' : 'below'}">${matches}</span></td>
-      </tr>`;
-    }).join('');
+  const priceSummary = $('#priceSummary');
+  if (priceSummary) {
+    priceSummary.innerHTML = `
+      <div class="suggested-card above"><div class="suggested-card-label">Sobre PVP</div><div class="suggested-card-value">${stats.above}</div></div>
+      <div class="suggested-card ok"><div class="suggested-card-label">En linea</div><div class="suggested-card-value">${stats.ok}</div></div>
+      <div class="suggested-card below"><div class="suggested-card-label">Bajo PVP</div><div class="suggested-card-value">${stats.below}</div></div>
+      <div class="suggested-card"><div class="suggested-card-label">Lista local</div><div class="suggested-card-value">${localRows.length}</div><div class="suggested-ref">${stats.local} matches locales</div></div>
+    `;
   }
-  $('#priceListCount').textContent = localRows.length;
+
+  renderPerSuperUploads();
+
+  // Compact table of all loaded rows in #priceMatchDetails
+  const details = $('#priceMatchDetails');
+  if (details) {
+    if (!localRows.length) {
+      details.innerHTML = '<div class="empty" style="padding:30px 20px">Sin lista PVP cargada. Cargá un archivo arriba.</div>';
+    } else {
+      const rows = localRows.slice(0, 100);
+      details.innerHTML = `<table class="mini-table">
+        <thead><tr><th>Producto</th><th>Marca</th><th>Cadena</th><th class="price">MI PVP</th><th>Match</th></tr></thead>
+        <tbody>${rows.map((row) => {
+          const matches = state.items.filter((item) => scorePriceRow(row, item) != null).length;
+          return `<tr>
+            <td>${escape(row.product || row.sku || '-')}</td>
+            <td class="brand">${escape(row.brand || '-')}</td>
+            <td>${row.stores.map((s) => `<span class="pill ${s}">${SUPER_LABEL[s] || s}</span>`).join(' ')}</td>
+            <td class="price">${fmtPrice(row.price)}</td>
+            <td><span class="suggested-badge ${matches ? 'ok' : 'below'}">${matches}</span></td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table>`;
+    }
+  }
+
+  const countEl = $('#priceListCount');
+  if (countEl) countEl.textContent = localRows.length;
 }
 
 // ===== Cobertura Grupo Bimbo =====
@@ -809,21 +859,114 @@ function renderPositioning() {
       </div>
     </div>
 
-    <div class="exec-card">
-      <h3>Cobertura por submarca (${byBrand.length})</h3>
-      <table>
-        <thead><tr><th>Submarca</th><th class="price">SKUs</th><th class="price">Supers</th><th class="price">Ofertas</th></tr></thead>
-        <tbody>${byBrand.map((b) => `
-          <tr>
-            <td class="brand">${escape(b.brand)}</td>
-            <td class="price">${b.count}</td>
-            <td class="price">${b.supers}/4</td>
-            <td class="price">${b.offers}</td>
-          </tr>
-        `).join('')}</tbody>
-      </table>
-    </div>
+    ${renderCoverageCharts(bimbo)}
   `;
+}
+
+function renderCoverageCharts(bimbo) {
+  const perSuper = SUPERS.map((s) => {
+    const arr = bimbo.filter((i) => i.super === s);
+    const prices = arr.map((i) => i.price).filter((p) => p != null);
+    return {
+      super: s,
+      count: arr.length,
+      avg: prices.length ? Math.round(prices.reduce((sum, x) => sum + x, 0) / prices.length) : null,
+    };
+  }).filter((s) => s.count > 0);
+  const maxCount = Math.max(...perSuper.map((s) => s.count), 1);
+
+  // Chart B: avg price per super from priceList matches, fallback to bimbo avg
+  const superColors = { tata: 'var(--tata)', disco: 'var(--disco)', eldorado: 'var(--eldorado)', tiendainglesa: 'var(--tiendainglesa)' };
+  const chartABars = perSuper.map((s) => {
+    const pct = (s.count / maxCount * 100).toFixed(1);
+    return `<div class="chart-bar-row">
+      <div class="chart-bar-label"><span class="pill ${s.super}">${SUPER_LABEL[s.super]}</span></div>
+      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${pct}%;background:${superColors[s.super] || 'var(--rojo)'}"></div></div>
+      <div class="chart-bar-value">${s.count} SKUs</div>
+    </div>`;
+  }).join('');
+
+  const maxAvg = Math.max(...perSuper.map((s) => s.avg || 0), 1);
+  const chartBBars = perSuper.map((s) => {
+    if (!s.avg) return '';
+    const pct = (s.avg / maxAvg * 100).toFixed(1);
+    return `<div class="chart-bar-row">
+      <div class="chart-bar-label"><span class="pill ${s.super}">${SUPER_LABEL[s.super]}</span></div>
+      <div class="chart-bar-track"><div class="chart-bar-fill" style="width:${pct}%;background:${superColors[s.super] || 'var(--rojo)'}"></div></div>
+      <div class="chart-bar-value">${fmtPrice(s.avg)}</div>
+    </div>`;
+  }).join('');
+
+  // Chart C: frequency of being most expensive vs cheapest per super
+  const superExpensive = {};
+  const superCheapest = {};
+  SUPERS.forEach((s) => { superExpensive[s] = 0; superCheapest[s] = 0; });
+  for (const g of state.clusters) {
+    if (g.items.length < 2) continue;
+    const prices = g.items.map((x) => x.price).filter((p) => p != null);
+    if (!prices.length) continue;
+    const maxP = Math.max(...prices);
+    const minP = Math.min(...prices);
+    for (const it of g.items) {
+      if (it.price === maxP) superExpensive[it.super] = (superExpensive[it.super] || 0) + 1;
+      if (it.price === minP) superCheapest[it.super] = (superCheapest[it.super] || 0) + 1;
+    }
+  }
+  const maxCmp = Math.max(...SUPERS.map((s) => (superExpensive[s] || 0) + (superCheapest[s] || 0)), 1);
+  const chartCBars = SUPERS.map((s) => {
+    const exp = superExpensive[s] || 0;
+    const chp = superCheapest[s] || 0;
+    if (!exp && !chp) return '';
+    const total = exp + chp;
+    const expPct = (exp / maxCmp * 100).toFixed(1);
+    const chpPct = (chp / maxCmp * 100).toFixed(1);
+    return `<div class="chart-bar-row">
+      <div class="chart-bar-label"><span class="pill ${s}">${SUPER_LABEL[s]}</span></div>
+      <div class="chart-bar-track" style="display:flex">
+        <div style="width:${expPct}%;background:var(--rojo);height:100%;border-radius:4px 0 0 4px" title="${exp} veces más caro"></div>
+        <div style="width:${chpPct}%;background:var(--offer);height:100%;border-radius:0 4px 4px 0" title="${chp} veces más barato"></div>
+      </div>
+      <div class="chart-bar-value" style="font-size:11px;width:120px">${exp > 0 ? `<span style="color:var(--rojo)">${exp}↑</span> ` : ''}${chp > 0 ? `<span style="color:var(--offer)">${chp}↓</span>` : ''}</div>
+    </div>`;
+  }).filter(Boolean).join('');
+
+  // Chart D: brand coverage dots
+  const brandsPresent = [...new Set(bimbo.map((i) => i.brand))].filter((b) => PORTFOLIO_BRANDS.includes(b));
+  const brandCoverageRows = brandsPresent.map((brand) => {
+    const brandItems = bimbo.filter((i) => i.brand === brand);
+    const supersWithBrand = new Set(brandItems.map((i) => i.super));
+    const dots = SUPERS.map((s) => {
+      const present = supersWithBrand.has(s);
+      return `<span class="coverage-dot ${present ? 'present' : 'absent'}" title="${SUPER_LABEL[s]}">${SUPER_LABEL[s][0]}</span>`;
+    }).join('');
+    return `<div class="brand-coverage-row">
+      <div class="brand-coverage-name">${escape(brand)}</div>
+      ${dots}
+      <span style="font-size:11px;color:var(--texto-muted);margin-left:4px">${brandItems.length} SKUs</span>
+    </div>`;
+  }).join('');
+
+  return `<div class="exec-card charts-section">
+    <h3>Mis productos en supermercados</h3>
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h4>SKUs por supermercado</h4>
+        ${chartABars || '<div class="empty" style="padding:10px">Sin datos</div>'}
+      </div>
+      <div class="chart-card">
+        <h4>Precio promedio mis productos</h4>
+        ${chartBBars || '<div class="empty" style="padding:10px">Sin datos</div>'}
+      </div>
+      <div class="chart-card chart-full">
+        <h4>Donde son mas caros / mas baratos mis productos <span style="font-size:10px;color:var(--rojo)">■ más caro</span> <span style="font-size:10px;color:var(--offer)">■ más barato</span></h4>
+        ${chartCBars || '<div class="empty" style="padding:10px">No hay productos en 2+ supers aun</div>'}
+      </div>
+      <div class="chart-card chart-full">
+        <h4>Cobertura de mis marcas</h4>
+        ${brandCoverageRows || '<div class="empty" style="padding:10px">Sin datos de marcas</div>'}
+      </div>
+    </div>
+  </div>`;
 }
 
 function buildExecutiveSummary(bimbo) {
@@ -1117,11 +1260,16 @@ function buildHistoryTable(points) {
 function closeModal() { $('#modal').classList.remove('show'); }
 
 // ===== Refresh =====
+let refreshCancelled = false;
+
 async function pollUntilDone(initialGeneratedAt) {
   const start = Date.now();
   const maxMs = 8 * 60 * 1000;
+  let failedStatusPolls = 0;
   while (Date.now() - start < maxMs) {
-    await new Promise((r) => setTimeout(r, 15000));
+    if (refreshCancelled) throw new Error('Actualización cancelada.');
+    await new Promise((r) => setTimeout(r, 10000));
+    if (refreshCancelled) throw new Error('Actualización cancelada.');
     try {
       const r = await fetch('/data/latest.json', { cache: 'no-store' });
       if (r.ok) {
@@ -1130,85 +1278,53 @@ async function pollUntilDone(initialGeneratedAt) {
       }
       const s = await fetch('/api/status', { cache: 'no-store' });
       if (s.ok) {
+        failedStatusPolls = 0;
         const sd = await s.json();
         const elapsed = Math.round((Date.now() - start) / 1000);
-        $('#refreshBtn').innerHTML = `<span class="spinner"></span> ${sd.status === 'queued' ? 'En cola…' : 'Scraping…'} (${elapsed}s)`;
+        $('#refreshBtn').innerHTML = `<span class="spinner"></span> ${sd.status === 'queued' ? 'En cola…' : 'Scraping…'} (${elapsed}s) <small style="opacity:.7">(click para cancelar)</small>`;
         if (sd.status === 'completed' && sd.conclusion === 'failure') throw new Error('El scrape falló.');
+      } else {
+        failedStatusPolls++;
+        if (failedStatusPolls >= 3) throw new Error('No se puede verificar el estado del scrape. Intentá de nuevo en unos minutos.');
       }
-    } catch (e) { console.warn('poll', e); }
+    } catch (e) {
+      if (e.message.includes('cancelada') || e.message.includes('falló') || e.message.includes('verificar')) throw e;
+      failedStatusPolls++;
+      if (failedStatusPolls >= 3) throw new Error('Perdimos conexión con el servidor. Intentá de nuevo en unos minutos.');
+      console.warn('poll', e);
+    }
   }
   throw new Error('Timeout esperando el nuevo scrape (>8 min).');
 }
 
 async function refresh() {
+  refreshCancelled = false;
   const btn = $('#refreshBtn');
-  btn.disabled = true;
+  btn.disabled = false; // keep clickable for cancel
   const originalHTML = btn.innerHTML;
+  const originalOnclick = btn.onclick;
   const initial = state.generatedAt;
   try {
     btn.innerHTML = '<span class="spinner"></span> Disparando…';
+    btn.disabled = true;
     const resp = await fetch('/api/refresh', { method: 'POST' });
     const data = await resp.json();
     if (!resp.ok || data.ok === false) throw new Error(data.error || `HTTP ${resp.status}`);
     toast('Scrape disparado. Esperando resultados (~3-5 min)…');
-    btn.innerHTML = '<span class="spinner"></span> Scraping…';
+    btn.disabled = false;
+    btn.innerHTML = '<span class="spinner"></span> Scraping… <small style="opacity:.7">(click para cancelar)</small>';
+    btn.onclick = () => { refreshCancelled = true; };
     await pollUntilDone(initial);
     toast('Listo. Datos actualizados.', 'success');
     await load();
   } catch (err) {
-    toast('Error: ' + err.message, 'error');
+    toast((refreshCancelled ? '' : 'Error: ') + err.message, refreshCancelled ? '' : 'error');
   } finally {
+    refreshCancelled = false;
     btn.disabled = false;
     btn.innerHTML = originalHTML;
+    btn.onclick = originalOnclick;
   }
-}
-
-async function importPriceList() {
-  const file = $('#priceFile').files?.[0];
-  if (!file) {
-    toast('Seleccioná un archivo CSV, JSON o Excel (.xlsx).', 'error');
-    return;
-  }
-  try {
-    const name = file.name.toLowerCase();
-    const storeOverride = $('#priceStore').value;
-    let rawRows;
-    if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-      const buffer = await file.arrayBuffer();
-      rawRows = rowsFromExcel(new Uint8Array(buffer), storeOverride);
-    } else if (name.endsWith('.json')) {
-      rawRows = rowsFromJson(await file.text());
-    } else {
-      rawRows = rowsFromCsv(await file.text());
-    }
-    const rows = normalizePriceRows(rawRows, storeOverride, file.name);
-    const d = rows._diagnostics || {};
-    if (!rows.length) {
-      const hints = [];
-      if (d.noPrice > 0) hints.push(`${d.noPrice} filas sin precio (columna: pvp_sugerido, pvp o precio)`);
-      if (d.noStore > 0) hints.push(`${d.noStore} filas con cadena no reconocida (usá Todos, Tata, Disco, El Dorado o Tienda Inglesa)`);
-      if (d.noProduct > 0) hints.push(`${d.noProduct} filas sin producto`);
-      throw new Error('No se encontraron filas validas.' + (hints.length ? ' ' + hints.join('; ') + '.' : ''));
-    }
-    state.priceList = rows;
-    saveLocalPriceList();
-    renderAll();
-    const warnParts = [];
-    if (d.noPrice > 0) warnParts.push(`${d.noPrice} sin precio`);
-    if (d.noStore > 0) warnParts.push(`${d.noStore} con cadena no reconocida`);
-    const warn = warnParts.length ? ` (ignoradas: ${warnParts.join(', ')})` : '';
-    toast(`Lista PVP importada: ${rows.length} lineas${warn}.`, 'success');
-  } catch (err) {
-    toast('Error importando PVP: ' + err.message, 'error');
-  }
-}
-
-function clearPriceList() {
-  state.priceList = [];
-  localStorage.removeItem(PRICE_LIST_KEY);
-  $('#priceFile').value = '';
-  renderAll();
-  toast('Lista PVP local limpia.', 'success');
 }
 
 // ===== Eventos =====
@@ -1225,8 +1341,6 @@ function initEvents() {
   $('#compareQ').addEventListener('input', (e) => { state.compare.q = e.target.value; renderCompare(); });
   $('#compareBrand').addEventListener('change', (e) => { state.compare.brand = e.target.value; renderCompare(); });
   $('#offersQ').addEventListener('input', (e) => { state.offers.q = e.target.value; renderOffers(); });
-  $('#priceImport').addEventListener('click', importPriceList);
-  $('#priceClear').addEventListener('click', clearPriceList);
   $('#modal').addEventListener('click', (e) => { if (e.target.id === 'modal') closeModal(); });
   $('#modalClose').addEventListener('click', closeModal);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
