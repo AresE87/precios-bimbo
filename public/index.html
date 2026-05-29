@@ -120,26 +120,11 @@
 
   <section class="view" id="view-prices">
     <div class="panel">
-      <h2 class="panel-title">Lista PVP - <span id="priceListCount">0</span> lineas</h2>
-      <div class="price-upload-grid">
-        <input type="file" id="priceFile" accept=".csv,.json,application/json,text/csv" />
-        <select id="priceStore">
-          <option value="">Usar cadena del archivo</option>
-          <option value="tata">Tata</option>
-          <option value="disco">Disco</option>
-          <option value="eldorado">El Dorado</option>
-          <option value="tiendainglesa">Tienda Inglesa</option>
-          <option value="all">Todos</option>
-        </select>
-        <button class="btn primary" id="priceImport">Importar</button>
-        <button class="btn" id="priceClear">Limpiar</button>
-      </div>
+      <h2 class="panel-title">Lista MI PVP - <span id="priceListCount">0</span> lineas</h2>
+      <p style="margin:0 0 16px;color:var(--texto-muted);font-size:13px">Cargá tu lista de precios para cada supermercado. Columna requerida: <b>MI PVP</b> (o PVP / Precio). Formatos: Excel (.xlsx), CSV, JSON.</p>
       <div class="suggested-summary" id="priceSummary"></div>
-      <table class="mini-table">
-        <thead><tr><th>Producto</th><th>Marca</th><th>Cadena</th><th class="price">PVP</th><th>Match</th></tr></thead>
-        <tbody id="priceRows"></tbody>
-      </table>
-      <div class="empty" id="priceEmpty" style="display:none">Sin lista PVP cargada.</div>
+      <div class="per-super-uploads" id="perSuperUploads"></div>
+      <div id="priceMatchDetails" style="margin-top:16px"></div>
     </div>
   </section>
 
@@ -159,6 +144,7 @@
   </div>
 </div>
 
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
